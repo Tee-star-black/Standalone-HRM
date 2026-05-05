@@ -16,13 +16,12 @@ class DashboardController extends Controller
         $positionsCount = Position::count();
         $skillsCount = Skill::count();
 
-        $employees = Employee::with(['positions.job', 'skills'])->get();
+        $employees = Employee::with(['positions.job.skills', 'skills'])->get();
 
         $gapEmployees = $employees->map(function ($employee) {
-            $currentPosition = $employee->positions()
+            $currentPosition = $employee->positions
                 ->where('is_primary', true)
-                ->with('job.skills')
-                ->latest()
+                ->sortByDesc('created_at')
                 ->first();
 
             if (! $currentPosition || ! $currentPosition->job) {
@@ -33,6 +32,7 @@ class DashboardController extends Controller
 
             $totalGap = $currentPosition->job->skills->sum(function ($jobSkill) use ($employeeSkills) {
                 $employeeSkill = $employeeSkills->get($jobSkill->id);
+
                 $required = (int) $jobSkill->pivot->required_level;
                 $current = $employeeSkill ? (int) $employeeSkill->pivot->proficiency_level : 0;
 

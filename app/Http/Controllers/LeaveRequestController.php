@@ -27,7 +27,16 @@ class LeaveRequestController extends Controller
 
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
-        $daysRequested = $start->diffInDays($end) + 1;
+        $daysRequested = 0;
+
+        $current = $start->copy();
+
+        while ($current->lte($end)) {
+            if (! $current->isWeekend()) {
+                $daysRequested++;
+            }
+            $current->addDay();
+        }
 
         $leaveRequest = LeaveRequest::create([
             'employee_id' => $data['employee_id'],

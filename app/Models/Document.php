@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Document extends Model
 {
     protected $fillable = [
+        'documentable_type',
+        'documentable_id',
         'disk',
         'path',
         'original_name',
