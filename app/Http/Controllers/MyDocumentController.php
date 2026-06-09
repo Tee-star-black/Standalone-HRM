@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -17,14 +18,9 @@ class MyDocumentController extends Controller
             abort(403, 'No employee profile linked to this user.');
         }
 
-        $documents = Document::where('documentable_type', get_class($employee))
-            ->where('documentable_id', $employee->id)
-            ->latest()
-            ->get();
-
         return view('my-documents.index', [
             'employee' => $employee,
-            'documents' => $documents,
+            'documents' => $employee->documents()->latest()->get(),
         ]);
     }
 
@@ -36,23 +32,34 @@ class MyDocumentController extends Controller
             abort(403, 'No employee profile linked to this user.');
         }
 
-        $data = $request->validate([
-            'document_type' => ['required', 'string', 'max:255'],
-            'file' => ['required', 'file', 'max:10240'],
+        $request->validate([
+            'document' => ['required', 'file', 'max:10240'],
+            'title' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $file = $request->file('file');
+        $file = $request->file('document');
         $path = $file->store('employee-documents', 'public');
 
-        Document::create([
+        $document = Document::create([
             'documentable_type' => get_class($employee),
             'documentable_id' => $employee->id,
             'disk' => 'public',
             'path' => $path,
-            'original_name' => $data['document_type'] . ' - ' . $file->getClientOriginalName(),
+            'original_name' => $request->title ?: $file->getClientOriginalName(),
             'mime_type' => $file->getClientMimeType(),
             'size' => $file->getSize(),
         ]);
+
+        AuditLogger::log(
+            'document_uploaded',
+            'Employee uploaded document: ' . $document->original_name,
+            $document,
+            [
+                'document_id' => $document->id,
+                'employee_id' => $employee->id,
+                'path' => $document->path,
+            ]
+        );
 
         return redirect()
             ->route('my-documents.index')
@@ -63,39 +70,7 @@ class MyDocumentController extends Controller
     {
         $employee = Auth::user()->employee;
 
-        if (! $employee) {
-            abort(403, 'No employee profile linked to this user.');
-        }
-
-        if (
-            $document->documentable_type !== get_class($employee) ||
-            (int) $document->documentable_id !== (int) $employee->id
-        ) {
-            abort(403, 'You can only preview your own documents.');
-        }
-
-        if (! Storage::disk($document->disk)->exists($document->path)) {
-            abort(404, 'File not found.');
-        }
-
-        return view('my-documents.preview', [
-            'document' => $document,
-            'url' => route('my-documents.file', $document),
-        ]);
-    }
-
-    public function file(Document $document)
-    {
-        $employee = Auth::user()->employee;
-
-        if (! $employee) {
-            abort(403, 'No employee profile linked to this user.');
-        }
-
-        if (
-            $document->documentable_type !== get_class($employee) ||
-            (int) $document->documentable_id !== (int) $employee->id
-        ) {
+        if (! $employee || $document->documentable_type !== get_class($employee) || (int) $document->documentable_id !== (int) $employee->id) {
             abort(403, 'You can only preview your own documents.');
         }
 
@@ -116,15 +91,8 @@ class MyDocumentController extends Controller
     {
         $employee = Auth::user()->employee;
 
-        if (! $employee) {
-            abort(403, 'No employee profile linked to this user.');
-        }
-
-        if (
-            $document->documentable_type !== get_class($employee) ||
-            (int) $document->documentable_id !== (int) $employee->id
-        ) {
-            abort(403, 'You can only access your own documents.');
+        if (! $employee || $document->documentable_type !== get_class($employee) || (int) $document->documentable_id !== (int) $employee->id) {
+            abort(403, 'You can only download your own documents.');
         }
 
         if (! Storage::disk($document->disk)->exists($document->path)) {
@@ -140,20 +108,23 @@ class MyDocumentController extends Controller
     {
         $employee = Auth::user()->employee;
 
-        if (! $employee) {
-            abort(403, 'No employee profile linked to this user.');
-        }
-
-        if (
-            $document->documentable_type !== get_class($employee) ||
-            (int) $document->documentable_id !== (int) $employee->id
-        ) {
+        if (! $employee || $document->documentable_type !== get_class($employee) || (int) $document->documentable_id !== (int) $employee->id) {
             abort(403, 'You can only delete your own documents.');
         }
 
         if (Storage::disk($document->disk)->exists($document->path)) {
             Storage::disk($document->disk)->delete($document->path);
         }
+
+        AuditLogger::log(
+            'document_deleted',
+            'Employee deleted document: ' . $document->original_name,
+            $document,
+            [
+                'document_id' => $document->id,
+                'employee_id' => $employee->id,
+            ]
+        );
 
         $document->delete();
 

@@ -9,12 +9,14 @@ use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\SkillController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\OnboardingController;
 
 Route::apiResource('employees', EmployeeController::class);
 Route::apiResource('jobs', JobController::class);
 Route::apiResource('skills', SkillController::class);
 Route::apiResource('positions', PositionController::class);
 Route::apiResource('evaluations', EvaluationController::class);
+Route::post('onboarding/employees', [OnboardingController::class, 'store']);
 
 Route::post('jobs/{job}/skills', [JobController::class, 'attachSkill']);
 Route::post('employees/{employee}/skills', [EmployeeController::class, 'attachSkill']);

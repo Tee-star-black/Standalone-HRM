@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\RecruitmentApplicationsExport;
 use App\Models\Candidate;
 use App\Models\Document;
 use App\Models\Employee;
 use App\Models\Job;
 use App\Models\JobApplication;
 use App\Models\Vacancy;
+use App\Services\AuditLogger;
 use Barryvdh\DomPDF\Facade\Pdf as DomPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class RecruitmentController extends Controller
 {
@@ -43,9 +46,22 @@ class RecruitmentController extends Controller
             'status' => ['required', 'in:open,on_hold,closed'],
         ]);
 
-        Vacancy::create($data);
+        $vacancy = Vacancy::create($data);
 
-        return redirect()->route('recruitment.index')->with('status', 'Vacancy created.');
+        AuditLogger::log(
+            'vacancy_created',
+            'Created vacancy: ' . $vacancy->title,
+            $vacancy,
+            [
+                'vacancy_id' => $vacancy->id,
+                'code' => $vacancy->code,
+                'status' => $vacancy->status,
+            ]
+        );
+
+        return redirect()
+            ->route('recruitment.index')
+            ->with('status', 'Vacancy created.');
     }
 
     public function storeCandidate(Request $request)
@@ -69,11 +85,21 @@ class RecruitmentController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
+        AuditLogger::log(
+            'candidate_created',
+            'Created candidate: ' . $candidate->full_name,
+            $candidate,
+            [
+                'candidate_id' => $candidate->id,
+                'email' => $candidate->email,
+            ]
+        );
+
         if ($request->hasFile('cv')) {
             $file = $request->file('cv');
             $path = $file->store('candidate-documents', 'public');
 
-            Document::create([
+            $document = Document::create([
                 'documentable_type' => get_class($candidate),
                 'documentable_id' => $candidate->id,
                 'disk' => 'public',
@@ -82,9 +108,22 @@ class RecruitmentController extends Controller
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
             ]);
+
+            AuditLogger::log(
+                'candidate_cv_uploaded',
+                'Uploaded CV for candidate ' . $candidate->full_name,
+                $document,
+                [
+                    'candidate_id' => $candidate->id,
+                    'document_id' => $document->id,
+                    'path' => $document->path,
+                ]
+            );
         }
 
-        return redirect()->route('recruitment.index')->with('status', 'Candidate added.');
+        return redirect()
+            ->route('recruitment.index')
+            ->with('status', 'Candidate added.');
     }
 
     public function storeApplication(Request $request)
@@ -101,7 +140,7 @@ class RecruitmentController extends Controller
 
         $data['applied_at'] = now();
 
-        JobApplication::updateOrCreate(
+        $application = JobApplication::updateOrCreate(
             [
                 'vacancy_id' => $data['vacancy_id'],
                 'candidate_id' => $data['candidate_id'],
@@ -109,7 +148,24 @@ class RecruitmentController extends Controller
             $data
         );
 
-        return redirect()->route('recruitment.index')->with('status', 'Application recorded.');
+        $application->load(['candidate', 'vacancy']);
+
+        AuditLogger::log(
+            'application_recorded',
+            'Recorded application for ' . $application->candidate->full_name . ' - ' . $application->vacancy->title,
+            $application,
+            [
+                'application_id' => $application->id,
+                'candidate_id' => $application->candidate_id,
+                'vacancy_id' => $application->vacancy_id,
+                'stage' => $application->stage,
+                'status' => $application->status,
+            ]
+        );
+
+        return redirect()
+            ->route('recruitment.index')
+            ->with('status', 'Application recorded.');
     }
 
     public function updateApplicationStage(Request $request, JobApplication $application)
@@ -119,9 +175,88 @@ class RecruitmentController extends Controller
             'status' => ['required', 'in:active,hired,rejected,withdrawn'],
         ]);
 
-        $application->update($data);
+        $oldStage = $application->stage;
+        $oldStatus = $application->status;
 
-        return redirect()->route('recruitment.index')->with('status', 'Application updated.');
+        $application->update($data);
+        $application->load(['candidate', 'vacancy']);
+
+        AuditLogger::log(
+            'application_updated',
+            'Updated application for ' . $application->candidate->full_name,
+            $application,
+            [
+                'application_id' => $application->id,
+                'old_stage' => $oldStage,
+                'new_stage' => $application->stage,
+                'old_status' => $oldStatus,
+                'new_status' => $application->status,
+            ]
+        );
+
+        return redirect()
+            ->route('recruitment.index')
+            ->with('status', 'Application updated.');
+    }
+
+    public function generateOfferLetter(JobApplication $application)
+    {
+        $application->load(['candidate', 'vacancy']);
+
+        $candidate = $application->candidate;
+        $vacancy = $application->vacancy;
+
+        $pdf = DomPdf::loadView('recruitment.offer-letter', [
+            'application' => $application,
+            'candidate' => $candidate,
+            'vacancy' => $vacancy,
+        ]);
+
+        $safeCandidateName = str_replace(['/', '\\', ' '], '-', $candidate->full_name);
+        $fileName = 'Offer-Letter-' . $safeCandidateName . '-' . now()->format('YmdHis') . '.pdf';
+        $path = 'candidate-documents/offers/' . $fileName;
+
+        Storage::disk('public')->put($path, $pdf->output());
+
+        $document = Document::create([
+            'documentable_type' => get_class($candidate),
+            'documentable_id' => $candidate->id,
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => 'Offer Letter - ' . $candidate->full_name,
+            'mime_type' => 'application/pdf',
+            'size' => Storage::disk('public')->size($path),
+        ]);
+
+        $application->update([
+            'stage' => 'offer',
+            'offer_letter_generated_at' => now(),
+        ]);
+
+        \App\Models\HrNotification::create([
+            'user_id' => auth()->id(),
+            'type' => 'success',
+            'title' => 'Offer letter generated',
+            'message' => 'Offer letter generated for ' . $candidate->full_name . '.',
+            'url' => route('recruitment.index'),
+        ]);
+
+        AuditLogger::log(
+            'offer_letter_generated',
+            'Generated offer letter for ' . $candidate->full_name,
+            $application,
+            [
+                'candidate_id' => $candidate->id,
+                'vacancy_id' => $vacancy->id,
+                'application_id' => $application->id,
+                'document_id' => $document->id,
+                'path' => $document->path,
+            ]
+        );
+
+        return redirect()
+            ->route('recruitment.index')
+            ->with('status', 'Offer letter generated successfully.');
     }
 
     public function hire(JobApplication $application)
@@ -178,46 +313,20 @@ class RecruitmentController extends Controller
             'notes' => trim(($application->notes ?? '') . "\nConverted to employee ID: " . $employee->id),
         ]);
 
+        AuditLogger::log(
+            'candidate_converted_to_employee',
+            'Converted candidate ' . $candidate->full_name . ' to employee ' . $employee->employee_number,
+            $application,
+            [
+                'candidate_id' => $candidate->id,
+                'employee_id' => $employee->id,
+                'application_id' => $application->id,
+            ]
+        );
+
         return redirect()
             ->route('recruitment.index')
             ->with('status', 'Candidate converted to employee and documents moved successfully.');
-    }
-
-    public function generateOfferLetter(JobApplication $application)
-    {
-        $application->load(['candidate', 'vacancy']);
-
-        $candidate = $application->candidate;
-
-        $pdf = DomPdf::loadView('recruitment.offer-letter', [
-            'application' => $application,
-            'candidate' => $candidate,
-            'vacancy' => $application->vacancy,
-        ]);
-
-        $safeName = str_replace(['/', '\\', ' '], '-', 'Offer-Letter-' . $candidate->full_name . '-' . now()->format('Y-m-d')) . '.pdf';
-        $path = 'candidate-documents/offers/' . $safeName;
-
-        Storage::disk('public')->put($path, $pdf->output());
-
-        Document::create([
-            'documentable_type' => get_class($candidate),
-            'documentable_id' => $candidate->id,
-            'disk' => 'public',
-            'path' => $path,
-            'original_name' => 'Offer Letter - ' . $candidate->full_name,
-            'mime_type' => 'application/pdf',
-            'size' => Storage::disk('public')->size($path),
-        ]);
-
-        $application->update([
-            'stage' => 'offer',
-            'offer_letter_generated_at' => now(),
-        ]);
-
-        return redirect()
-            ->route('recruitment.index')
-            ->with('status', 'Offer letter generated and saved under candidate documents.');
     }
 
     public function candidateFile(Document $document)
@@ -252,5 +361,20 @@ class RecruitmentController extends Controller
         $safeName = str_replace(['/', '\\'], '-', $document->original_name);
 
         return Storage::disk($document->disk)->download($document->path, $safeName);
+    }
+
+    public function exportApplications()
+    {
+        AuditLogger::log(
+            'recruitment_report_exported',
+            'Exported recruitment applications report',
+            null,
+            []
+        );
+
+        return Excel::download(
+            new RecruitmentApplicationsExport,
+            'recruitment-applications.xlsx'
+        );
     }
 }

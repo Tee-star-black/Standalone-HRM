@@ -1,0 +1,187 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\LeaveType;
+use Illuminate\Database\Seeder;
+
+class LeaveTypeSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $types = [
+            [
+                'name' => 'Annual Leave',
+                'code' => 'annual',
+                'default_days' => 15,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => false,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Paid annual leave. Default set to 15 working days per annual cycle for a 5-day work week.',
+            ],
+            [
+                'name' => 'Sick Leave',
+                'code' => 'sick',
+                'default_days' => 30,
+                'cycle_months' => 36,
+                'is_paid' => true,
+                'requires_document' => false,
+                'document_required_after_days' => 2,
+                'allow_negative_balance' => false,
+                'description' => 'Paid sick leave. Medical certificate required after the configured threshold.',
+            ],
+            [
+                'name' => 'Family Responsibility Leave',
+                'code' => 'family_responsibility',
+                'default_days' => 3,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Paid leave for qualifying family responsibility events. Supporting documents required.',
+            ],
+            [
+                'name' => 'Maternity Leave',
+                'code' => 'maternity',
+                'default_days' => 120,
+                'cycle_months' => 0,
+                'is_paid' => false,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Maternity leave. Generally up to 4 consecutive months. Supporting documentation required.',
+            ],
+            [
+                'name' => 'Parental Leave',
+                'code' => 'parental',
+                'default_days' => 10,
+                'cycle_months' => 0,
+                'is_paid' => false,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Parental leave. Supporting documentation required.',
+            ],
+            [
+                'name' => 'Adoption Leave',
+                'code' => 'adoption',
+                'default_days' => 70,
+                'cycle_months' => 0,
+                'is_paid' => false,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Adoption leave. Supporting documentation required.',
+            ],
+            [
+                'name' => 'Commissioning Parental Leave',
+                'code' => 'commissioning_parental',
+                'default_days' => 70,
+                'cycle_months' => 0,
+                'is_paid' => false,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Commissioning parental leave. Supporting documentation required.',
+            ],
+            [
+                'name' => 'Compassionate Leave',
+                'code' => 'compassionate',
+                'default_days' => 3,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Company compassionate leave for bereavement or serious family emergencies. Supporting documents required.',
+            ],
+            [
+                'name' => 'Study Leave',
+                'code' => 'study',
+                'default_days' => 5,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Company study leave. Proof of registration, timetable, or exam schedule may be required.',
+            ],
+            [
+                'name' => 'Religious / Cultural Leave',
+                'code' => 'religious_cultural',
+                'default_days' => 2,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => false,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Company religious or cultural leave. Configurable according to company policy.',
+            ],
+            [
+                'name' => 'Medical Appointment Leave',
+                'code' => 'medical_appointment',
+                'default_days' => 2,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Company leave for scheduled medical appointments. Appointment proof required.',
+            ],
+            [
+                'name' => 'Training Leave',
+                'code' => 'training',
+                'default_days' => 5,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => false,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => false,
+                'description' => 'Company-approved training or professional development leave.',
+            ],
+            [
+                'name' => 'Special Leave',
+                'code' => 'special',
+                'default_days' => 0,
+                'cycle_months' => 12,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Special leave granted at management or HR discretion. Supporting motivation/documentation required.',
+            ],
+            [
+                'name' => 'Unpaid Leave',
+                'code' => 'unpaid',
+                'default_days' => 0,
+                'cycle_months' => 0,
+                'is_paid' => false,
+                'requires_document' => false,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Unpaid leave requiring HR or manager approval.',
+            ],
+            [
+                'name' => 'Suspension / Administrative Leave',
+                'code' => 'administrative',
+                'default_days' => 0,
+                'cycle_months' => 0,
+                'is_paid' => true,
+                'requires_document' => true,
+                'document_required_after_days' => null,
+                'allow_negative_balance' => true,
+                'description' => 'Administrative leave used by HR or management for special employment situations.',
+            ],
+        ];
+
+        foreach ($types as $type) {
+            LeaveType::updateOrCreate(
+                ['code' => $type['code']],
+                $type
+            );
+        }
+    }
+}

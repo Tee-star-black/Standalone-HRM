@@ -95,11 +95,6 @@ class Employee extends Model
         return $this->hasMany(LeaveRequest::class, 'approver_id');
     }
 
-    public function getFullNameAttribute(): string
-    {
-        return trim($this->first_name . ' ' . $this->last_name);
-    }
-
     public function emergencyContacts(): HasMany
     {
         return $this->hasMany(EmergencyContact::class);
@@ -108,5 +103,25 @@ class Employee extends Model
     public function payslips(): HasMany
     {
         return $this->hasMany(Payslip::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function documents()
+    {
+        return $this->morphMany(Document::class, 'documentable');
+    }
+
+    public function generatedDocuments(): HasMany
+    {
+        return $this->hasMany(GeneratedDocument::class);
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
     }
 }
