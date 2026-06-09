@@ -2,16 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
         'name',
         'email',
@@ -22,11 +29,21 @@ class User extends Authenticatable
         'email_notifications',
     ];
 
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
@@ -36,14 +53,19 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Get the employee profile linked to this user account.
+     */
     public function employee(): HasOne
     {
         return $this->hasOne(Employee::class);
     }
 
-
-    public function notifications()
+    /**
+     * User notification records.
+     */
+    public function hrNotifications()
     {
-        return $this->hasMany(\App\Models\HrNotification::class);
+        return $this->hasMany(HrNotification::class);
     }
 }
